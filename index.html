@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video to Notes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* Basic body styling */
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f4ff;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 3D bubble animations */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            left: -100px;
+            width: 40vw;
+            height: 40vw;
+            background: radial-gradient(circle at center, rgba(255, 102, 204, 0.5), transparent);
+            border-radius: 50%;
+            animation: bubble1 8s infinite;
+        }
+        body::after {
+            content: '';
+            position: absolute;
+            bottom: -100px;
+            right: -100px;
+            width: 30vw;
+            height: 30vw;
+            background: radial-gradient(circle at center, rgba(102, 204, 255, 0.5), transparent);
+            border-radius: 50%;
+            animation: bubble2 8s infinite;
+        }
+        @keyframes bubble1 {
+            0% { transform: translate(0, 0); }
+            50% { transform: translate(20px, -20px); }
+            100% { transform: translate(0, 0); }
+        }
+        @keyframes bubble2 {
+            0% { transform: translate(0, 0); }
+            50% { transform: translate(-30px, 30px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        /* Card glassmorphism styling */
+        .card {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            z-index: 1;
+            position: relative;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        /* Text and button styling */
+        h1 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        input {
+            padding: 10px;
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: #333;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            backdrop-filter: blur(5px);
+        }
+        button {
+            padding: 10px 20px;
+            background: rgba(102, 204, 255, 0.8);
+            border: none;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        button:hover {
+            background-color: rgba(102, 204, 255, 1);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* YouTube video container */
+        #video-container {
+            display: none;
+            margin-top: 20px;
+        }
+        iframe {
+            border-radius: 20px;
+            width: 100%;
+            height: 50vw;
+            max-height: 315px;
+        }
+
+        /* Hide canvas */
+        canvas {
+            display: none;
+        }
+
+        /* Responsive media queries */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 20px;
+            }
+            .card {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.3rem;
+            }
+            button {
+                font-size: 0.9rem;
+            }
+        }
+        @media screen and (max-width: 480px) {
+            h1 {
+                font-size: 1.2rem;
+            }
+            button {
+                font-size: 0.85rem;
+            }
+            iframe {
+                height: 55vw;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Convert YouTube Video to Notes</h1>
+        <input type="text" id="video-url" placeholder="Enter YouTube Video URL">
+        <button id="convert-btn">Convert Video</button>
+        <div id="video-container">
+            <iframe id="youtube-video" width="100%" height="250" frameborder="0" allowfullscreen></iframe>
+        </div>
+        <button id="start-btn" style="display:none; margin-top: 10px;">Start Conversion</button>
+        <button id="download-pdf-btn" style="display:none; margin-top: 10px;">Download PDF</button>
+    </div>
+
+    <canvas id="canvas" width="560" height="315"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        let videoPlayer;
+        let lastImageData = null;
+        let screenshots = [];
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext('2d');
+
+        function onYouTubeIframeAPIReady() {}
+
+        function getYouTubeVideoId(url) {
+            const urlObj = new URL(url);
+            return urlObj.searchParams.get("v");
+        }
+
+        document.getElementById('convert-btn').addEventListener('click', function() {
+            const videoUrl = document.getElementById('video-url').value;
+            const videoId = getYouTubeVideoId(videoUrl);
+            if (videoId) {
+                const iframe = document.getElementById('youtube-video');
+                iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+                document.getElementById('video-container').style.display = 'block';
+                document.getElementById('start-btn').style.display = 'block';
+                videoPlayer = new YT.Player('youtube-video', {
+                    events: {
+                        'onReady': onPlayerReady
+                    }
+                });
+            } else {
+                alert("Please enter a valid YouTube video URL.");
+            }
+        });
+
+        function onPlayerReady(event) {
+            document.getElementById('start-btn').addEventListener('click', function() {
+                captureFrames();
+            });
+        }
+
+        function captureFrames() {
+            const interval = 2000;
+            const video = videoPlayer.getIframe();
+            const capture = () => {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                let currentImageData = canvas.toDataURL();
+                if (lastImageData !== currentImageData) {
+                    screenshots.push(currentImageData);
+                    lastImageData = currentImageData;
+                }
+            };
+            setInterval(capture, interval);
+        }
+
+        document.getElementById('download-pdf-btn').addEventListener('click', function() {
+            const { jsPDF } = window.jspdf;
+            let doc = new jsPDF();
+            screenshots.forEach((image, index) => {
+                if (index > 0) doc.addPage();
+                doc.addImage(image, 'JPEG', 10, 10, 180, 100);
+            });
+            doc.save('video-notes.pdf');
+        });
+
+        document.getElementById('start-btn').addEventListener('click', function() {
+            setTimeout(() => {
+                document.getElementById('download-pdf-btn').style.display = 'block';
+            }, 10000);
+        });
+    </script>
+
+</body>
+</html>
